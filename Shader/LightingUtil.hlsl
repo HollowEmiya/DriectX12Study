@@ -25,7 +25,7 @@ float CalAttenuation(float d, float falloffStart, float falloffEnd)
 float3 SchlickFresnel(float3 R0, float3 normal, float3 lightVec)
 {
     float cosIncidentAngle = saturate(dot(normal, lightVec));
-    float f0 = 1 - cosIncidentAngle;
+    float f0 = 1.0f - cosIncidentAngle;
     float3 reflectPercent = R0 + (1.0f - R0) * pow(f0, 5);
     
     return reflectPercent;

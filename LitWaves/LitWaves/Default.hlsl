@@ -19,7 +19,7 @@ cbuffer cbPerObject : register(b0)
 
 cbuffer cbMaterial : register(b1)
 {
-    float4 gDiffuesAlbedo;
+    float4 gDiffuseAlbedo;
     float3 gFresnelR0;
     float gRoughness;
     float4x4 gMatTransform;
@@ -29,6 +29,7 @@ cbuffer cbPass : register(b2)
 {
     float4x4 gView;
     float4x4 gInvView;
+    float4x4 gProj;
     float4x4 gInvProj;
     float4x4 gViewProj;
     float4x4 gInvViewProj;
@@ -47,14 +48,14 @@ cbuffer cbPass : register(b2)
 
 struct VertexIn
 {
-    float3 PosL : POSITIONT;
+    float3 PosL : POSITION;
     float3 NormalL : NORMAL;
 };
 
 struct VertexOut
 {
-    float4 PosH : SV_Position;
-    float3 PosW : POSITIONT;
+    float4 PosH : SV_POSITION;
+    float3 PosW : POSITION;
     float3 NormalW : NORMAL;
 };
 
@@ -78,17 +79,17 @@ float4 PS(VertexOut pin) : SV_Target
     
     float3 toEyeW = normalize(gEyePosW - pin.PosW);
     
-    float4 ambient = gAmbientLight * gDiffuesAlbedo;
+    float4 ambient = gAmbientLight * gDiffuseAlbedo;
     
     const float shininess = 1.0f - gRoughness;
-    Material mat = { gDiffuesAlbedo, gFresnelR0, shininess };
+    Material mat = { gDiffuseAlbedo, gFresnelR0, shininess };
     float3 shadowFactor = 1.0f;
     float4 directLight = ComputeLighting(gLights, mat, pin.PosW,
     pin.NormalW, toEyeW, shadowFactor);
     
     float4 litColor = ambient + directLight;
     
-    litColor.a = gDiffuesAlbedo.a;
+    litColor.a = gDiffuseAlbedo.a;
     
     return litColor;
 }
