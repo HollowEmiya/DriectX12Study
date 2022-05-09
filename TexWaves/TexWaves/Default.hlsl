@@ -10,16 +10,22 @@
     #define NUM_SPOT_LIGHTS 0
 #endif
 
-#include "../../Shader/LightingUtil.hlsl"
+#include "../../Shader/lightingUtil.hlsl"
 
 Texture2D gDiffuseMap : register(t0);
-SamplerState gsamLinear : register(s0);
+
+SamplerState gsamPointWrap : register(s0);
+SamplerState gsamPointClamp : register(s1);
+SamplerState gsamLinearWrap : register(s2);
+SamplerState gsamLinearClamp : register(s3);
+SamplerState gsamAnisotropicWrap : register(s4);
+SamplerState gsamAnisotropicClamp : register(s5);
 
 cbuffer cbPerObject : register(b0)
 {
     float4x4 gWorld;
     float4x4 gTexTransform;
-}
+};
 
 cbuffer cbPass : register(b1)
 {
@@ -35,9 +41,10 @@ cbuffer cbPass : register(b1)
     float2 gInvRenderTargetSize;
     float gNearZ;
     float gFarZ;
-    float gToTalTime;
+    float gTotalTime;
     float gDeltaTime;
     float4 gAmbientLight;
+    
     Light gLights[MaxLights];
 };
 
@@ -49,59 +56,56 @@ cbuffer cbMaterial : register(b2)
     float4x4 gMatTransform;
 };
 
-struct VerrtexIn
+struct VertexIn
 {
     float3 PosL : POSITION;
-    float3 Normal : NORMAL;
+    float3 NoramlL : NORMAL;
     float2 TexC : TEXCOORD;
 };
 
 struct VertexOut
 {
     float4 PosH : SV_POSITION;
+    float3 NormalW : NORAMAL;
     float3 PosW : POSITION;
-    float3 NormalW : NORMAL;
     float2 TexC : TEXCOORD;
 };
 
-VertexOut VS(VerrtexIn vin)
+VertexOut VS(VertexIn vin)
 {
     VertexOut vout = (VertexOut) 0.0f;
     
     float4 posW = mul(float4(vin.PosL, 1.0f), gWorld);
     vout.PosW = posW;
     
-    vout.NormalW = mul(vin.Normal, (float3x3) gWorld);
+    vout.NormalW = mul(vin.NoramlL, (float3x3) gWorld);
     
     vout.PosH = mul(posW, gViewProj);
     
-    // 为了对三角形进行插值操作而输出的顶点属性
-    // Output vertex attributes for interpolation across triangle.
     float4 texC = mul(float4(vin.TexC, 0.0f, 1.0f), gTexTransform);
-    vout.TexC = mul(texC, gMatTransform).xy;                // 一个是材质的纹理变换，一个是物理属性的纹理变换
+    vout.TexC = mul(texC, gMatTransform).xy;
     
     return vout;
 }
 
 float4 PS(VertexOut pin):SV_Target
 {
-    float4 diffuseAbledo = gDiffuseAlbedo * gDiffuseMap.Sample(gsamLinear, pin.TexC);
+    float4 diffuseAlbedo = gDiffuseAlbedo * gDiffuseMap.Sample(gsamAnisotropicWrap, pin.TexC);
     
     pin.NormalW = normalize(pin.NormalW);
     
     float3 toEyeW = normalize(gEyePosW - pin.PosW);
     
-    float4 ambient = diffuseAbledo * gAmbientLight;
+    float4 ambient = gAmbientLight * diffuseAlbedo;
     
     const float shininess = 1.0f - gRoughness;
-    Material mat = { diffuseAbledo, gFresnelR0, shininess };
+    Material mat = { diffuseAlbedo, gFresnelR0, shininess };
     float3 shadowFactor = 1.0f;
-    float4 directLight = ComputeLighting(gLights, mat, pin.PosW,
-        pin.NormalW, toEyeW, shadowFactor);
-
+    float4 directLight = ComputeLighting(gLights, mat, pin.PosW, pin.NormalW, toEyeW, shadowFactor);
+    
     float4 litColor = ambient + directLight;
     
-    litColor.a = diffuseAbledo.a;
+    litColor.a = diffuseAlbedo.a;
     
     return litColor;
 }
