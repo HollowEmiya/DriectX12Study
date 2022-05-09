@@ -1,13 +1,13 @@
-#ifndef NUM_DIR_LIGHT
-    #define NUM_DIR_LIGHT 3
+#ifndef NUM_DIR_LIGHTS
+    #define NUM_DIR_LIGHTS 3
 #endif
 
-#ifndef NUM_POINT_LIGHT
-    #define NUM_POINT_LIGHT 0
+#ifndef NUM_POINT_LIGHTS
+    #define NUM_POINT_LIGHTS 0
 #endif
 
-#ifndef NUM_SPOT_LIGHT
-    #define NUM_SPOT_LIGHT 0
+#ifndef NUM_SPOT_LIGHTS
+    #define NUM_SPOT_LIGHTS 0
 #endif
 
 #include "../../Shader/LightingUtil.hlsl"
@@ -68,7 +68,7 @@ VertexOut VS(VerrtexIn vin)
 {
     VertexOut vout = (VertexOut) 0.0f;
     
-    float4 posW = mul((vin.PosL, 1.0f), gWorld);
+    float4 posW = mul(float4(vin.PosL, 1.0f), gWorld);
     vout.PosW = posW;
     
     vout.NormalW = mul(vin.Normal, (float3x3) gWorld);
