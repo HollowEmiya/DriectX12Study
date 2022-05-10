@@ -23,7 +23,7 @@ Waves::Waves(int m, int n, float dx, float dt, float speed, float damping)
 	mK2 = (4.0f - 8.0f * e) / d;
 	mK3 = (2.0f * e) / d;
 
-	mPreSolution.resize(m * n);
+	mPrevSolution.resize(m * n);
 	mCurrSolution.resize(m * n);
 	mNormals.resize(m * n);
 	mTangentX.resize(m * n);
@@ -37,7 +37,7 @@ Waves::Waves(int m, int n, float dx, float dt, float speed, float damping)
 		{
 			float x = -halfWidth + j * dx;
 
-			mPreSolution[i * n + j] = XMFLOAT3(x, 0.0f, z);
+			mPrevSolution[i * n + j] = XMFLOAT3(x, 0.0f, z);
 			mCurrSolution[i * n + j] = XMFLOAT3(x, 0.0f, z);
 			mNormals[i * n + j] = XMFLOAT3(0.0f, 1.0f, 0.0f);
 			mTangentX[i * n + j] = XMFLOAT3(1.0f, 0.0f, 0.0f);
