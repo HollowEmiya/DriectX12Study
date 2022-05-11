@@ -344,6 +344,30 @@ void TexWavesApp::AnimateMaterials(const GameTimer& gt)
 	waterMat->MatTransform(3, 1) = tv;
 
 	waterMat->NumFramesDirty = gNumFrameResources;
+	
+	// try to revolve the material
+	/*
+	
+	auto wirefence = mMaterials["wirefence"].get();
+
+	float& csX = wirefence->MatTransform(0, 0);
+	float& siX = wirefence->MatTransform(0, 1);
+	float& siY = wirefence->MatTransform(1, 0);
+	float& csY = wirefence->MatTransform(1, 1);
+
+	csX += 0.05f * cosf(gt.DeltaTime());
+	siX += 0.05f * sinf(gt.DeltaTime());
+	siY -= 0.05f * sinf(gt.DeltaTime());
+	csY += 0.05f * cosf(gt.DeltaTime());
+
+	wirefence->MatTransform(0, 0) = csX;
+	wirefence->MatTransform(0, 1) = siX;
+	wirefence->MatTransform(1, 0) = siX;
+	wirefence->MatTransform(1, 1) = csY;
+
+	wirefence->NumFramesDirty = gNumFrameResources;
+
+	*/
 }
 
 void TexWavesApp::UpdateObjectCBs(const GameTimer& gt)
