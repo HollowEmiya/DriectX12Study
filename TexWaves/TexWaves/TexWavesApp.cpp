@@ -345,10 +345,22 @@ void TexWavesApp::AnimateMaterials(const GameTimer& gt)
 
 	waterMat->NumFramesDirty = gNumFrameResources;
 	
+	auto wirefence = mMaterials["wirefence"].get();
+	
+	// first move the material to (0,0), then rotation the angle base on the (0,0)
+	// at last move it to old place
+	XMMATRIX move = XMMatrixTranslation(-0.5f, -0.5f, 0.0f);
+	XMMATRIX ro = XMMatrixRotationZ(gt.TotalTime());
+	XMMATRIX reMove = XMMatrixTranslation(0.5f, 0.5f, 0.0f);
+	XMMATRIX m = move * ro * reMove;
+	XMFLOAT4X4 m44;
+	XMStoreFloat4x4(&m44, m);
+	wirefence->MatTransform = m44;
+	wirefence->NumFramesDirty = gNumFrameResources;
 	// try to revolve the material
 	/*
 	
-	auto wirefence = mMaterials["wirefence"].get();
+	
 
 	float& csX = wirefence->MatTransform(0, 0);
 	float& siX = wirefence->MatTransform(0, 1);
