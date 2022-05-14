@@ -75,6 +75,11 @@ float Waves::Width()const
 	return mNumCols * mSpatialStep;
 }
 
+float Waves::Depth()const
+{
+	return mNumRows * mSpatialStep;
+}
+
 void Waves::Update(float dt)
 {
 	static float t = 0;

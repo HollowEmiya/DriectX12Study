@@ -23,7 +23,7 @@ struct RenderItem
 
 	UINT ObjCBIndex = -1;
 
-	Material* mat = nullptr;
+	Material* Mat = nullptr;
 	MeshGeometry* Geo = nullptr;
 
 	D3D12_PRIMITIVE_TOPOLOGY PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
@@ -190,6 +190,14 @@ bool BlendApp::Initialize()
 	FlushCommandQueue();
 
 	return true;
+}
+
+void BlendApp::OnResize()
+{
+	D3DApp::OnResize();
+
+	XMMATRIX P = XMMatrixPerspectiveLH(0.25f * MathHelper::Pi, AspectRatio(), 1.0f, 1000.0f);
+	XMStoreFloat4x4(&mProj, P);
 }
 
 void BlendApp::Update(const GameTimer& gt)
@@ -687,4 +695,307 @@ void BlendApp::BuildWavesGeometry()
 	geo->DrawArgs["grid"] = submesh;
 
 	mGeometries["waterGeo"] = std::move(geo);
+}
+
+void BlendApp::BuildBoxGeometry()
+{
+	GeometryGenerator geoGen;
+	GeometryGenerator::MeshData box = geoGen.CreateBox(8.0f, 8.0f, 8.0f, 3);
+
+	std::vector<Vertex> vertices(box.Vertices.size());
+	for (size_t i = 0; i < box.Vertices.size(); ++i)
+	{
+		auto& p = box.Vertices[i].Position;
+		vertices[i].Pos = p;
+		vertices[i].Normal = box.Vertices[i].Normal;
+		vertices[i].TexC = box.Vertices[i].TexC;
+	}
+
+	const UINT vbByteSize = (UINT)vertices.size() * sizeof(Vertex);
+
+	std::vector<std::uint16_t> indices = box.GetIndices16();
+	const UINT ibByteSize = (UINT)indices.size() * sizeof(std::uint16_t);
+
+	auto geo = std::make_unique<MeshGeometry>();
+	geo->Name = "boxGeo";
+
+	ThrowIfFailed(D3DCreateBlob(vbByteSize, &geo->VertexBufferCPU));
+	CopyMemory(geo->VertexBufferCPU->GetBufferPointer(), vertices.data(), vbByteSize);
+
+	ThrowIfFailed(D3DCreateBlob(ibByteSize, &geo->IndexBufferCPU));
+	CopyMemory(geo->IndexBufferCPU->GetBufferPointer(), indices.data(), ibByteSize);
+
+	geo->VertexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(),
+		mCommandList.Get(), vertices.data(), vbByteSize, geo->VertexBufferUploader);
+
+	geo->IndexBufferGPU = d3dUtil::CreateDefaultBuffer(md3dDevice.Get(),
+		mCommandList.Get(), indices.data(), ibByteSize, geo->IndexBufferUploader);
+
+	geo->VertexByteStride = sizeof(Vertex);
+	geo->VertexBufferByteSize = vbByteSize;
+	geo->IndexFormat = DXGI_FORMAT_R16_UINT;
+	geo->IndexBufferByteSize = ibByteSize;
+
+	SubmeshGeometry submesh;
+	submesh.IndexCount = (UINT)indices.size();
+	submesh.StartIndexLocation = 0;
+	submesh.BaseVertexLocation = 0;
+
+	geo->DrawArgs["box"] = submesh;
+
+	mGeometries["boxGeo"] = std::move(geo);
+}
+
+void BlendApp::BuildPSOs()
+{
+	D3D12_GRAPHICS_PIPELINE_STATE_DESC opaquePsoDesc;
+
+	ZeroMemory(&opaquePsoDesc, sizeof(D3D12_GRAPHICS_PIPELINE_STATE_DESC));
+	opaquePsoDesc.InputLayout = { mInputLayout.data(),(UINT)mInputLayout.size() };
+	opaquePsoDesc.pRootSignature = mRootSignature.Get();
+	opaquePsoDesc.VS =
+	{
+		reinterpret_cast<BYTE*>(mShaders["standardVS"]->GetBufferPointer()),
+		mShaders["standardVS"]->GetBufferSize()
+	};
+	opaquePsoDesc.PS =
+	{
+		reinterpret_cast<BYTE*>(mShaders["opaquePS"]->GetBufferPointer()),
+		mShaders["opaquePS"]->GetBufferSize()
+	};
+	opaquePsoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
+	opaquePsoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
+	opaquePsoDesc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
+	opaquePsoDesc.SampleMask = UINT_MAX;
+	opaquePsoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+	opaquePsoDesc.NumRenderTargets = 1;
+	opaquePsoDesc.RTVFormats[0] = mBackBufferFormat;
+	opaquePsoDesc.SampleDesc.Count = m4xMsaaState ? 4 : 1;
+	opaquePsoDesc.SampleDesc.Quality = m4xMsaaState ? (m4xMsaaQuality - 1) : 0;
+	opaquePsoDesc.DSVFormat = mDepthStencilFormat;
+	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&opaquePsoDesc, IID_PPV_ARGS(&mPSOs["opaque"])));
+
+	D3D12_GRAPHICS_PIPELINE_STATE_DESC transparentPsoDesc = opaquePsoDesc;
+
+	D3D12_RENDER_TARGET_BLEND_DESC transparencyBlendDesc;
+	transparencyBlendDesc.BlendEnable = true;
+	transparencyBlendDesc.LogicOpEnable = false;
+	transparencyBlendDesc.SrcBlend = D3D12_BLEND_SRC_ALPHA;
+	transparencyBlendDesc.DestBlend = D3D12_BLEND_INV_SRC_ALPHA;
+	transparencyBlendDesc.BlendOp = D3D12_BLEND_OP_ADD;
+	transparencyBlendDesc.SrcBlendAlpha = D3D12_BLEND_ONE;
+	transparencyBlendDesc.DestBlendAlpha = D3D12_BLEND_ZERO;
+	transparencyBlendDesc.BlendOpAlpha = D3D12_BLEND_OP_ADD;
+	transparencyBlendDesc.LogicOp = D3D12_LOGIC_OP_NOOP;
+	transparencyBlendDesc.RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
+
+	transparentPsoDesc.BlendState.RenderTarget[0] = transparencyBlendDesc;
+	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&transparentPsoDesc, IID_PPV_ARGS(&mPSOs["transparent"])));
+
+	D3D12_GRAPHICS_PIPELINE_STATE_DESC alphaTestedPsoDesc = opaquePsoDesc;
+	alphaTestedPsoDesc.PS =
+	{
+		reinterpret_cast<BYTE*>(mShaders["alphaTestedPS"]->GetBufferPointer()),
+		mShaders["alphaTestedPS"]->GetBufferSize()
+	};
+	alphaTestedPsoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
+	ThrowIfFailed(md3dDevice->CreateGraphicsPipelineState(&alphaTestedPsoDesc, IID_PPV_ARGS(&mPSOs["alphaTested"])));
+}
+
+void BlendApp::BuildFrameResources()
+{
+	for (int i = 0; i < gNumFrameResources; ++i)
+	{
+		mFrameResources.push_back(std::make_unique<FrameResource>(md3dDevice.Get(),
+			1, (UINT)mAllRitems.size(), (UINT)mMaterials.size(), mWaves->VertexCount()));
+	}
+}
+
+void BlendApp::BuildMaterials()
+{
+	auto grass = std::make_unique<Material>();
+	grass->Name = "grass";
+	grass->MatCBIndex = 0;
+	grass->DiffuseSrvHeapIndex = 0;
+	grass->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
+	grass->FresnelR0 = XMFLOAT3(0.01f, 0.02f, 0.01f);
+	grass->Roughness = 0.125f;
+
+	auto water = std::make_unique<Material>();
+	water->Name = "water";
+	water->MatCBIndex = 1;
+	water->DiffuseSrvHeapIndex = 1;
+	water->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
+	water->FresnelR0 = XMFLOAT3(0.1f, 0.1f, 0.1f);
+	water->Roughness = 0.0f;
+
+	auto wirefence = std::make_unique<Material>();
+	wirefence->Name = "wirefence";
+	wirefence->MatCBIndex = 2;
+	wirefence->DiffuseSrvHeapIndex = 2;
+	wirefence->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
+	wirefence->FresnelR0 = XMFLOAT3(0.1f, 0.1f, 0.1f);
+	wirefence->Roughness = 0.25f;
+
+	mMaterials["grass"] = std::move(grass);
+	mMaterials["water"] = std::move(water);
+	mMaterials["wirefence"] = std::move(wirefence);
+}
+
+void BlendApp::BuildRenderItems()
+{
+	auto wavesRitem = std::make_unique<RenderItem>();
+	wavesRitem->World = MathHelper::Identity4x4();
+	XMStoreFloat4x4(&wavesRitem->TexTransform, XMMatrixScaling(5.0f, 5.0f, 1.0f));
+	wavesRitem->ObjCBIndex = 0;
+	wavesRitem->Mat = mMaterials["water"].get();
+	wavesRitem->Geo = mGeometries["waterGeo"].get();
+	wavesRitem->PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+	wavesRitem->IndexCount = wavesRitem->Geo->DrawArgs["grid"].IndexCount;
+	wavesRitem->StartIndexLocation = wavesRitem->Geo->DrawArgs["grid"].StartIndexLocation;
+	wavesRitem->BaseVertexLocation = wavesRitem->Geo->DrawArgs["grid"].BaseVertexLocation;
+
+	mWavesRitem = wavesRitem.get();
+
+	mRitemLayer[(int)RenderLayer::Transparent].push_back(wavesRitem.get());
+
+	auto gridRitem = std::make_unique<RenderItem>();
+	gridRitem->World = MathHelper::Identity4x4();
+	XMStoreFloat4x4(&gridRitem->TexTransform, XMMatrixScaling(5.0f, 5.0f, 1.0f));
+	gridRitem->ObjCBIndex = 1;
+	gridRitem->Mat = mMaterials["grass"].get();
+	gridRitem->Geo = mGeometries["landGeo"].get();
+	gridRitem->PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+	gridRitem->IndexCount = gridRitem->Geo->DrawArgs["gird"].IndexCount;
+	gridRitem->StartIndexLocation = gridRitem->Geo->DrawArgs["grid"].StartIndexLocation;
+	gridRitem->BaseVertexLocation = gridRitem->Geo->DrawArgs["grid"].BaseVertexLocation;
+
+	mRitemLayer[(int)RenderLayer::Opaque].push_back(gridRitem.get());
+
+	auto boxRitem = std::make_unique<RenderItem>();
+	XMStoreFloat4x4(&boxRitem->World, XMMatrixTranslation(3.0f, 2.0f, -9.0f));
+	boxRitem->ObjCBIndex = 2;
+	boxRitem->Mat = mMaterials["wirefence"].get();
+	boxRitem->Geo = mGeometries["boxGeo"].get();
+	boxRitem->PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+	boxRitem->IndexCount = boxRitem->Geo->DrawArgs["box"].IndexCount;
+	boxRitem->StartIndexLocation = boxRitem->Geo->DrawArgs["box"].StartIndexLocation;
+	boxRitem->BaseVertexLocation = boxRitem->Geo->DrawArgs["box"].BaseVertexLocation;
+
+	mRitemLayer[(int)RenderLayer::AlphaTested].push_back(boxRitem.get());
+
+	mAllRitems.push_back(std::move(wavesRitem));
+	mAllRitems.push_back(std::move(gridRitem));
+	mAllRitems.push_back(std::move(boxRitem));
+}
+
+void BlendApp::DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std::vector<RenderItem*>& ritems)
+{
+	UINT objCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(ObjectConstants));
+	UINT matCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(MaterialConstants));
+
+	auto objectCB = mCurrFrameResource->ObjectCB->Resource();
+	auto matCB = mCurrFrameResource->MaterialCB->Resource();
+
+	for (size_t i = 0; i < ritems.size(); ++i)
+	{
+		auto ri = ritems[i];
+
+		cmdList->IASetVertexBuffers(0, 1, &ri->Geo->VertexBufferView());
+		cmdList->IASetIndexBuffer(&ri->Geo->IndexBufferView());
+		cmdList->IASetPrimitiveTopology(ri->PrimitiveType);
+
+		CD3DX12_GPU_DESCRIPTOR_HANDLE tex(mSrvDescriptorHeap->GetGPUDescriptorHandleForHeapStart());
+		tex.Offset(ri->Mat->DiffuseSrvHeapIndex, mCbvSrvDescriptorSize);
+
+		D3D12_GPU_VIRTUAL_ADDRESS objCBAddress = objectCB->GetGPUVirtualAddress() + ri->ObjCBIndex * objCBByteSize;
+		D3D12_GPU_VIRTUAL_ADDRESS matCBAddress = matCB->GetGPUVirtualAddress() + ri->Mat->MatCBIndex * matCBByteSize;
+
+		cmdList->SetGraphicsRootDescriptorTable(0, tex);
+		cmdList->SetGraphicsRootConstantBufferView(1, objCBAddress);
+		cmdList->SetGraphicsRootConstantBufferView(3, matCBAddress);
+
+		cmdList->DrawIndexedInstanced(ri->IndexCount, 1, ri->StartIndexLocation, ri->BaseVertexLocation, 0);
+	}
+}
+
+std::array<const CD3DX12_STATIC_SAMPLER_DESC, 6> BlendApp::GetStaticSampler()
+{
+	const CD3DX12_STATIC_SAMPLER_DESC pointWrap(
+		0,
+		D3D12_FILTER_MIN_MAG_MIP_POINT,
+		D3D12_TEXTURE_ADDRESS_MODE_WRAP,
+		D3D12_TEXTURE_ADDRESS_MODE_WRAP,
+		D3D12_TEXTURE_ADDRESS_MODE_WRAP
+	);
+
+
+	const CD3DX12_STATIC_SAMPLER_DESC pointClamp(
+		1,
+		D3D12_FILTER_MIN_MAG_MIP_POINT,
+		D3D12_TEXTURE_ADDRESS_MODE_CLAMP,
+		D3D12_TEXTURE_ADDRESS_MODE_CLAMP,
+		D3D12_TEXTURE_ADDRESS_MODE_CLAMP
+	);
+
+	const CD3DX12_STATIC_SAMPLER_DESC linearWrap(
+		2,
+		D3D12_FILTER_MIN_MAG_MIP_LINEAR,
+		D3D12_TEXTURE_ADDRESS_MODE_WRAP,
+		D3D12_TEXTURE_ADDRESS_MODE_WRAP,
+		D3D12_TEXTURE_ADDRESS_MODE_WRAP
+	);
+
+	const CD3DX12_STATIC_SAMPLER_DESC linearClamp(
+		3,
+		D3D12_FILTER_MIN_MAG_MIP_LINEAR,
+		D3D12_TEXTURE_ADDRESS_MODE_CLAMP,
+		D3D12_TEXTURE_ADDRESS_MODE_CLAMP,
+		D3D12_TEXTURE_ADDRESS_MODE_CLAMP
+	);
+
+	const CD3DX12_STATIC_SAMPLER_DESC anisotropicWrap(
+		4,
+		D3D12_FILTER_ANISOTROPIC,
+		D3D12_TEXTURE_ADDRESS_MODE_WRAP,
+		D3D12_TEXTURE_ADDRESS_MODE_WRAP,
+		D3D12_TEXTURE_ADDRESS_MODE_WRAP,
+		0.0f,
+		8
+	);
+
+	const CD3DX12_STATIC_SAMPLER_DESC anisotropicClamp(
+		5,
+		D3D12_FILTER_ANISOTROPIC,
+		D3D12_TEXTURE_ADDRESS_MODE_CLAMP,
+		D3D12_TEXTURE_ADDRESS_MODE_CLAMP,
+		D3D12_TEXTURE_ADDRESS_MODE_CLAMP,
+		0.0f,
+		8
+	);
+
+	return {
+		pointWrap,pointClamp,
+		linearWrap,linearClamp,
+		anisotropicWrap,anisotropicClamp
+	};
+}
+
+float BlendApp::GetHillsHeight(float x, float z)const
+{
+	return 0.3f * (z * sinf(0.1f * x) + x * cosf(0.1f * z));
+}
+
+XMFLOAT3 BlendApp::GetHillsNormal(float x, float z)const
+{
+	XMFLOAT3 n(
+		-0.03f * z * cosf(0.1f * x) - 0.3f * cosf(0.1f * z),
+		1.0f,
+		-0.3f * sinf(0.1f * x) + 0.03f * x * sinf(0.1f * z)
+	);
+
+	XMVECTOR unitNormal = XMVector3Normalize(XMLoadFloat3(&n));
+	XMStoreFloat3(&n, unitNormal);
+
+	return n;
 }
