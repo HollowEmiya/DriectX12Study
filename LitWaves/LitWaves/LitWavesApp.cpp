@@ -403,7 +403,8 @@ void LitWavesApp::UpdateMainPassCB(const GameTimer& gt)
 	XMVECTOR lightDir = -MathHelper::SphericalToCartesian(1.0f, mSunTheta, mSunPhi);
 
 	XMStoreFloat3(&mMainPassCB.Lights[0].Direction, lightDir);
-	mMainPassCB.Lights[0].Strength = { 1.0f,1.0f,0.9f };
+	float red = 1.0f - cosf(gt.TotalTime()*5.8);
+	mMainPassCB.Lights[0].Strength = { red,0.1f,0.3f };
 
 	auto currPassCB = mCurrFrameResource->PassCB.get();
 	currPassCB->CopyData(0, mMainPassCB);
@@ -699,7 +700,7 @@ void LitWavesApp::DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std:
 		cmdList->IASetIndexBuffer(&ri->Geo->IndexBufferView());
 		cmdList->IASetPrimitiveTopology(ri->PrimitiveType);
 
-		D3D12_GPU_VIRTUAL_ADDRESS objCBAddress = objectCB->GetGPUVirtualAddress() + ri->ObjCBIndex * objCBByteSize;
+		D3D12_GPU_VIRTUAL_ADDRESS objCBAddress = objectCB->GetGPUVirtualAddress()+ri->ObjCBIndex*objCBByteSize;
 		D3D12_GPU_VIRTUAL_ADDRESS matCBAddress = matCB->GetGPUVirtualAddress() + ri->Mat->MatCBIndex * matCBByteSize;
 
 		cmdList->SetGraphicsRootConstantBufferView(0, objCBAddress);
