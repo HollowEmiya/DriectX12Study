@@ -81,7 +81,7 @@ private:
 	void BuildRenderItems();
 	void DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std::vector<RenderItem*>& ritems);
 
-	std::array<const CD3DX12_STATIC_SAMPLER_DESC, 6> GetStaticSampler();
+	std::array<const CD3DX12_STATIC_SAMPLER_DESC, 6> GetStaticSamplers();
 
 	float GetHillsHeight(float x, float z)const;
 	XMFLOAT3 GetHillsNormal(float x, float z)const;
@@ -169,7 +169,7 @@ bool BlendApp::Initialize()
 
 	mCbvSrvDescriptorSize = md3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
-	mWaves = std::make_unique<Waves>(128, 128, 1.0f, 0.3f, 4.0f, 0.2f);
+	mWaves = std::make_unique<Waves>(128, 128, 1.0f, 0.03f, 4.0f, 0.2f);
 
 	LoadTextures();
 	BuildRootSignature();
@@ -196,9 +196,11 @@ void BlendApp::OnResize()
 {
 	D3DApp::OnResize();
 
-	XMMATRIX P = XMMatrixPerspectiveLH(0.25f * MathHelper::Pi, AspectRatio(), 1.0f, 1000.0f);
+	// The window resized, so update the aspect ratio and recompute the projection matrix.
+	XMMATRIX P = XMMatrixPerspectiveFovLH(0.25f * MathHelper::Pi, AspectRatio(), 1.0f, 1000.0f);
 	XMStoreFloat4x4(&mProj, P);
 }
+
 
 void BlendApp::Update(const GameTimer& gt)
 {
@@ -484,7 +486,7 @@ void BlendApp::LoadTextures()
 
 	auto fenceTex = std::make_unique<Texture>();
 	fenceTex->Name = "fenceTex";
-	fenceTex->Filename = L"../../Texture/WireFence.dds";
+	fenceTex->Filename = L"../../Textures/WireFence.dds";
 	ThrowIfFailed(DirectX::CreateDDSTextureFromFile12(md3dDevice.Get(),
 		mCommandList.Get(), fenceTex->Filename.c_str(),
 		fenceTex->Resource, fenceTex->UploadHeap));
@@ -506,7 +508,7 @@ void BlendApp::BuildRootSignature()
 	slotRootParameter[2].InitAsConstantBufferView(1);
 	slotRootParameter[3].InitAsConstantBufferView(2);
 
-	auto staticSamplers = GetStaticSampler();
+	auto staticSamplers = GetStaticSamplers();
 
 	CD3DX12_ROOT_SIGNATURE_DESC rootSigDesc(4, slotRootParameter,
 		(UINT)staticSamplers.size(), staticSamplers.data(),
@@ -651,9 +653,9 @@ void BlendApp::BuildWavesGeometry()
 	int m = mWaves->RowCount();
 	int n = mWaves->ColumnCount();
 	int k = 0;
-	for (int i = 0; i < m; ++i)
+	for (int i = 0; i < m - 1; ++i)
 	{
-		for (int j = 0; j < n; ++j)
+		for (int j = 0; j < n - 1; ++j)
 		{
 			indices[k] = i * n + j;
 			indices[k + 1] = i * n + j + 1;
@@ -825,7 +827,7 @@ void BlendApp::BuildMaterials()
 	water->Name = "water";
 	water->MatCBIndex = 1;
 	water->DiffuseSrvHeapIndex = 1;
-	water->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
+	water->DiffuseAlbedo = XMFLOAT4(1.0f, 1.0f, 1.0f, 0.5f);
 	water->FresnelR0 = XMFLOAT3(0.1f, 0.1f, 0.1f);
 	water->Roughness = 0.0f;
 
@@ -866,7 +868,7 @@ void BlendApp::BuildRenderItems()
 	gridRitem->Mat = mMaterials["grass"].get();
 	gridRitem->Geo = mGeometries["landGeo"].get();
 	gridRitem->PrimitiveType = D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
-	gridRitem->IndexCount = gridRitem->Geo->DrawArgs["gird"].IndexCount;
+	gridRitem->IndexCount = gridRitem->Geo->DrawArgs["grid"].IndexCount;
 	gridRitem->StartIndexLocation = gridRitem->Geo->DrawArgs["grid"].StartIndexLocation;
 	gridRitem->BaseVertexLocation = gridRitem->Geo->DrawArgs["grid"].BaseVertexLocation;
 
@@ -919,7 +921,7 @@ void BlendApp::DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std::ve
 	}
 }
 
-std::array<const CD3DX12_STATIC_SAMPLER_DESC, 6> BlendApp::GetStaticSampler()
+std::array<const CD3DX12_STATIC_SAMPLER_DESC, 6> BlendApp::GetStaticSamplers()
 {
 	const CD3DX12_STATIC_SAMPLER_DESC pointWrap(
 		0,

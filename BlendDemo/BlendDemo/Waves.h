@@ -39,7 +39,7 @@ private:
 	float mTimeStep = 0.0f;
 	float mSpatialStep = 0.0f;
 	
-	std::vector<DirectX::XMFLOAT3> mPreSolution;
+	std::vector<DirectX::XMFLOAT3> mPrevSolution;
 	std::vector<DirectX::XMFLOAT3> mCurrSolution;
 	std::vector<DirectX::XMFLOAT3> mNormals;
 	std::vector<DirectX::XMFLOAT3> mTangentX;

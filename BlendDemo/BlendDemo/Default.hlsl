@@ -64,7 +64,7 @@ cbuffer cbMaterial : register(b2)
 struct VertexIn
 {
     float3 PosL : POSITION;
-    float3 Normal : NORMAL;
+    float3 NormalL : NORMAL;
     float2 TexC : TEXCOORD;
 };
 
@@ -78,17 +78,17 @@ struct VertexOut
 
 VertexOut VS(VertexIn vin)
 {
-    VertexOut vout;
+    VertexOut vout = (VertexOut) 0.0f;
      
     float4 posW = mul(float4(vin.PosL, 1.0f), gWorld);
     vout.PosW = posW.xyz;
     
-    vout.NormalW = mul(vin.Normal, (float3x3) gWorld);
+    vout.NormalW = mul(vin.NormalL, (float3x3) gWorld);
     
     vout.PosH = mul(posW, gViewProj);
     
     float4 texC = mul(float4(vin.TexC, 0.0f, 1.0f), gTexTransform);
-    vout.TexC = texC.xy;
+    vout.TexC = mul(texC,gMatTransform).xy;
     
     return vout;
 }
