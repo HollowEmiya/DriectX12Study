@@ -33,6 +33,8 @@ struct RenderItem
 	int BaseVertexLocation = 0;
 };
 
+
+
 enum class RenderLayer :int
 {
 	Opaque=0,
@@ -111,6 +113,7 @@ private:
 
 	std::unique_ptr<Waves> mWaves;
 
+	// just like render queue ¿‡À∆unity‰÷»æ∂”¡–£ø(Tags { "Queue"="Transparent" }
 	std::vector<RenderItem*> mRitemLayer[(int)RenderLayer::Count];
 
 	PassConstants mMainPassCB;
@@ -231,6 +234,8 @@ void BlendApp::Draw(const GameTimer& gt)
 
 	ThrowIfFailed(cmdListAlloc->Reset());
 
+	//ThrowIfFailed(mCommandList->Reset(cmdListAlloc.Get(), mPSOs["transparent"].Get()));
+
 	ThrowIfFailed(mCommandList->Reset(cmdListAlloc.Get(), mPSOs["opaque"].Get()));
 
 	mCommandList->RSSetViewports(1, &mScreenViewport);
@@ -257,6 +262,8 @@ void BlendApp::Draw(const GameTimer& gt)
 	mCommandList->SetPipelineState(mPSOs["alphaTested"].Get());
 	DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderLayer::AlphaTested]);
 
+	/*mCommandList->SetPipelineState(mPSOs["opaque"].Get());
+	DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderLayer::Opaque]);*/
 	mCommandList->SetPipelineState(mPSOs["transparent"].Get());
 	DrawRenderItems(mCommandList.Get(), mRitemLayer[(int)RenderLayer::Transparent]);
 
