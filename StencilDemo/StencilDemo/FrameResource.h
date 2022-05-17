@@ -34,7 +34,7 @@ struct PassConstants
 	float gFogRange = 150.0f;
 	DirectX::XMFLOAT2 cbPerObjectPad2;
 
-	Light gLights[MaxLights];
+	Light Lights[MaxLights];
 };
 
 struct Vertex
