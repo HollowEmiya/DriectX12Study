@@ -95,7 +95,7 @@ private:
 
 	UINT mCbvSrvDescriptorSize = 0;
 
-	ComPtr<ID3D12RootSignature> mRootSiganture = nullptr;
+	ComPtr<ID3D12RootSignature> mRootSignature = nullptr;
 	
 	ComPtr<ID3D12DescriptorHeap> mSrvDescriptorHeap = nullptr;
 
@@ -250,7 +250,7 @@ void StencilApp::Draw(const GameTimer& gt)
 	ID3D12DescriptorHeap* descriptorHeap[] = { mSrvDescriptorHeap.Get() };
 	mCommandList->SetDescriptorHeaps(_countof(descriptorHeap), descriptorHeap);
 
-	mCommandList->SetGraphicsRootSignature(mRootSiganture.Get());
+	mCommandList->SetGraphicsRootSignature(mRootSignature.Get());
 
 	UINT passCBByteSize = d3dUtil::CalcConstantBufferByteSize(sizeof(PassConstants));
 
@@ -428,13 +428,13 @@ void StencilApp::UpdateObjectCBs(const GameTimer& gt)
 		}
 	}
 }
-
+/**/
 void StencilApp::UpdateMaterialCBs(const GameTimer& gt)
 {
 	auto currMaterialCB = mCurrFrameResource->MaterialCB.get();
 	for (auto& e : mMaterials)
 	{
-		Material* mat=e.second.get();
+		Material* mat = e.second.get();
 		if (mat->NumFramesDirty > 0)
 		{
 			XMMATRIX matTransform = XMLoadFloat4x4(&mat->MatTransform);
@@ -444,6 +444,8 @@ void StencilApp::UpdateMaterialCBs(const GameTimer& gt)
 			matConstants.FresnelR0 = mat->FresnelR0;
 			matConstants.Roughness = mat->Roughness;
 			XMStoreFloat4x4(&matConstants.MatTransform, XMMatrixTranspose(matTransform));
+
+			currMaterialCB->CopyData(mat->MatCBIndex, matConstants);
 
 			mat->NumFramesDirty--;
 		}
@@ -540,7 +542,7 @@ void StencilApp::LoadTextures()
 	mTextures[iceTex->Name] = std::move(iceTex);
 	mTextures[white1x1Tex->Name] = std::move(white1x1Tex);
 }
-
+/**/
 void StencilApp::BuildRootSignature()
 {
 	CD3DX12_DESCRIPTOR_RANGE texTable;
@@ -575,7 +577,7 @@ void StencilApp::BuildRootSignature()
 		0,
 		serializedRootSig->GetBufferPointer(),
 		serializedRootSig->GetBufferSize(),
-		IID_PPV_ARGS(mRootSiganture.GetAddressOf())
+		IID_PPV_ARGS(mRootSignature.GetAddressOf())
 	));
 }
 
@@ -838,7 +840,7 @@ void StencilApp::BuildPSOs()
 	// opaque objects
 	ZeroMemory(&opaquePsoDesc, sizeof(D3D12_GRAPHICS_PIPELINE_STATE_DESC));
 	opaquePsoDesc.InputLayout = { mInputLayout.data(),(UINT)mInputLayout.size() };
-	opaquePsoDesc.pRootSignature = mRootSiganture.Get();
+	opaquePsoDesc.pRootSignature = mRootSignature.Get();
 	opaquePsoDesc.VS =
 	{
 		reinterpret_cast<BYTE*>(mShaders["standardVS"]->GetBufferPointer()),
@@ -1006,7 +1008,7 @@ void StencilApp::BuildMaterials()
 	auto shadowMat = std::make_unique<Material>();
 	shadowMat->Name = "shadowMat";
 	shadowMat->MatCBIndex = 4;
-	shadowMat->DiffuseSrvHeapIndex = 4;
+	shadowMat->DiffuseSrvHeapIndex = 3;
 	shadowMat->DiffuseAlbedo = XMFLOAT4(0.0f, 0.0f, 0.0f, 0.5f);
 	shadowMat->FresnelR0 = XMFLOAT3(0.001f, 0.001f, 0.001f);
 	shadowMat->Roughness = 0.0F;
@@ -1093,6 +1095,7 @@ void StencilApp::BuildRenderItems()
 	mAllRitems.push_back(std::move(shadowedSkullRitem));
 	mAllRitems.push_back(std::move(mirrorRitem));
 }
+
 
 void StencilApp::DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std::vector<RenderItem*>& ritems)
 {
